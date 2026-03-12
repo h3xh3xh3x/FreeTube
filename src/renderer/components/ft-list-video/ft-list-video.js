@@ -7,11 +7,13 @@ import {
   formatNumber,
   getRelativeTimeFromDate,
   openExternalLink,
+  openInternalPath,
   showToast,
   toDistractionFreeTitle,
   deepCopy,
   debounce
 } from '../../helpers/utils'
+import { openInBackgroundTab } from '../../helpers/tabs'
 import { deArrowData, deArrowThumbnail } from '../../helpers/sponsorblock'
 import thumbnailPlaceholder from '../../assets/img/thumbnail_placeholder.svg'
 
@@ -578,6 +580,17 @@ export default defineComponent({
     handleWatchPageLinkClick: function() {
       if (this.externalPlayerIsDefaultViewingMode) {
         this.handleExternalPlayer()
+      }
+    },
+    handleMiddleClick: function() {
+      const route = `/watch/${this.id}`
+      const query = this.watchVideoRouterLink.query || {}
+      const title = this.title || 'Video'
+
+      if (this.$store.getters.getMiddleClickAction === 'openInWindow') {
+        openInternalPath({ path: route, query, doCreateNewWindow: true })
+      } else {
+        openInBackgroundTab(route, query, title)
       }
     },
     fetchDeArrowThumbnail: async function() {

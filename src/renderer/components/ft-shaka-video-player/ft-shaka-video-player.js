@@ -2229,6 +2229,10 @@ export default defineComponent({
         return
       }
 
+      if (container.value && container.value.offsetParent === null) {
+        return
+      }
+
       if (document.activeElement.classList.contains('ft-input') || event.altKey) {
         return
       }

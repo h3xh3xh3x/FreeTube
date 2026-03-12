@@ -16,6 +16,7 @@
         tabindex="-1"
         :to="watchVideoRouterLink"
         @click="handleWatchPageLinkClick"
+        @auxclick.middle.stop.prevent="handleMiddleClick"
       >
         <img
           :src="thumbnail"
@@ -114,6 +115,7 @@
         class="title"
         :to="watchVideoRouterLink"
         @click="handleWatchPageLinkClick"
+        @auxclick.middle.stop.prevent="handleMiddleClick"
       >
         <h3
           class="h3Title"

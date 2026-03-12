@@ -15,9 +15,7 @@ import Watch from '../views/Watch/Watch.vue'
 import Hashtag from '../views/Hashtag/Hashtag.vue'
 import Post from '../views/Post.vue'
 
-const router = createRouter({
-  history: createWebHashHistory(),
-  routes: [
+export const routes = [
     {
       path: '/',
       name: 'default',
@@ -142,7 +140,11 @@ const router = createRouter({
       },
       component: Post
     }
-  ],
+]
+
+const router = createRouter({
+  history: createWebHashHistory(),
+  routes,
   scrollBehavior(to, from, savedPosition) {
     return new Promise((resolve, reject) => {
       setTimeout(() => {

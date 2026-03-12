@@ -314,5 +314,14 @@ export default {
     ipcRenderer.on(IpcChannels.SYNC_SUBSCRIPTION_CACHE, (_, { event, data }) => {
       handler(event, data)
     })
+  },
+
+  /**
+   * @param {(url: string) => void} handler
+   */
+  handleOpenInTab: (handler) => {
+    ipcRenderer.on('open-in-tab', (_, url) => {
+      handler(url)
+    })
   }
 }

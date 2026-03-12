@@ -72,6 +72,11 @@ export default defineComponent({
     'watch-video-recommendations': WatchVideoRecommendations,
     'ft-age-restricted': FtAgeRestricted
   },
+  inject: {
+    tabId: {
+      default: null
+    }
+  },
   beforeRouteLeave: async function (to, from, next) {
     this.handleRouteChange()
     window.removeEventListener('beforeunload', this.handleWatchProgressAutoSave)
@@ -1810,7 +1815,18 @@ export default defineComponent({
     },
 
     updateTitle: function () {
-      this.setAppTitle(`${this.videoTitle} - ${packageDetails.productName}`)
+      if (this.tabId) {
+        this.$store.commit('tabs/UPDATE_TAB_TITLE', {
+          tabId: this.tabId,
+          title: this.videoTitle
+        })
+
+        if (this.tabId === this.$store.getters['tabs/getActiveTabId']) {
+          this.setAppTitle(`${this.videoTitle} - ${packageDetails.productName}`)
+        }
+      } else {
+        this.setAppTitle(`${this.videoTitle} - ${packageDetails.productName}`)
+      }
     },
 
     isHiddenVideo: function (forbiddenTitles, channelsHidden, video) {

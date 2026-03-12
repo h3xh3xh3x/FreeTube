@@ -89,6 +89,13 @@ function runApp() {
     showCopyLink: false,
     prepend: (defaultActions, parameters, browserWindow) => [
       {
+        label: 'Open in a New Tab',
+        visible: parameters.linkURL.split('#')[0] === browserWindow.webContents.getURL().split('#')[0],
+        click: () => {
+          browserWindow.webContents.send('open-in-tab', parameters.linkURL)
+        }
+      },
+      {
         label: 'Open in a New Window',
         // Only show the option for in-app URLs and not external ones
         visible: parameters.linkURL.split('#')[0] === browserWindow.webContents.getURL().split('#')[0],

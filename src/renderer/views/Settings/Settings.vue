@@ -65,6 +65,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef } f
 import { useI18n } from '../../composables/use-i18n-polyfill'
 
 import GeneralSettings from '../../components/GeneralSettings/GeneralSettings.vue'
+import TabSettings from '../../components/TabSettings.vue'
 import ThemeSettings from '../../components/ThemeSettings.vue'
 import PlayerSettings from '../../components/PlayerSettings/PlayerSettings.vue'
 import ExternalPlayerSettings from '../../components/ExternalPlayerSettings.vue'
@@ -198,14 +199,21 @@ const settingsSectionComponents = computed(() => {
   }
 
   // ensure General Settings is placed first regardless of sorting
-  const generalSettingsEntry = {
-    type: 'general',
-    title: t('Settings.General Settings.General Settings'),
-    icon: ['fas', 'border-all'],
-    component: GeneralSettings
-  }
-
-  return [generalSettingsEntry, ...settingsSections]
+  return [
+    {
+      type: 'general',
+      title: t('Settings.General Settings.General Settings'),
+      icon: ['fas', 'border-all'],
+      component: GeneralSettings
+    },
+    {
+      type: 'tabs',
+      title: t('Settings.Tab Settings.Tab Settings'),
+      icon: ['fas', 'table-columns'],
+      component: TabSettings
+    },
+    ...settingsSections
+  ]
 })
 
 const unlocked = ref(store.getters.getSettingsPassword === '')

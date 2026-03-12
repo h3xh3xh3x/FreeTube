@@ -225,6 +225,8 @@ const state = {
   landingPage: 'subscriptions',
   listType: 'grid',
   maxVideoPlaybackRate: 3,
+  middleClickAction: 'openInTab',
+  tabBarPosition: 'top',
   onlyShowLatestFromChannel: false,
   onlyShowLatestFromChannelNumber: 1,
   openDeepLinksInNewWindow: false,

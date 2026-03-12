@@ -6,11 +6,19 @@
       hideOutlines: outlinesHidden,
       isLocaleRightToLeft: isLocaleRightToLeft,
       isSideNavOpen: isSideNavOpen,
-      hideLabelsSideBar: hideLabelsSideBar && !isSideNavOpen
+      hideLabelsSideBar: hideLabelsSideBar && !isSideNavOpen,
+      [`tabBar-${tabBarPosition}`]: true
     }"
   >
     <TopNav
       :inert="isAnyPromptOpen"
+    />
+    <TabBar
+      :inert="isAnyPromptOpen"
+      :position="tabBarPosition"
+      @create-tab="handleCreateTab"
+      @switch-tab="handleSwitchTab"
+      @close-tab="handleCloseTab"
     />
     <SideNav
       :inert="isAnyPromptOpen"
@@ -39,17 +47,10 @@
           @click="handleNewBlogBannerClick"
         />
       </div>
-      <RouterView
-        v-slot="{ Component }"
+      <div
+        id="tab-host-container"
         class="routerView"
-      >
-        <Transition
-          mode="out-in"
-          name="fade"
-        >
-          <component :is="Component" />
-        </Transition>
-      </RouterView>
+      />
     </FtFlexBox>
     <FtPrompt
       v-if="showReleaseNotes"
@@ -113,7 +114,7 @@
 
 <script setup>
 import { marked } from 'marked'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from './composables/use-i18n-polyfill'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -129,6 +130,7 @@ import FtPlaylistAddVideoPrompt from './components/FtPlaylistAddVideoPrompt/FtPl
 import FtCreatePlaylistPrompt from './components/FtCreatePlaylistPrompt/FtCreatePlaylistPrompt.vue'
 import FtKeyboardShortcutPrompt from './components/FtKeyboardShortcutPrompt/FtKeyboardShortcutPrompt.vue'
 import FtSearchFilters from './components/FtSearchFilters/FtSearchFilters.vue'
+import TabBar from './components/TabBar/TabBar.vue'
 
 import store from './store/index'
 
@@ -136,16 +138,21 @@ import packageDetails from '../../package.json'
 import { openExternalLink, openInternalPath, showToast } from './helpers/utils'
 import { translateWindowTitle } from './helpers/strings'
 import { loadLocale } from './i18n/index'
+import { tabHost } from './helpers/TabHost'
 
 const route = useRoute()
 const router = useRouter()
 const { locale, t } = useI18n()
+let activeTabIdForRouter = null
 
 /** @type {import('vue').ComputedRef<boolean>} */
 const isSideNavOpen = computed(() => store.getters.getIsSideNavOpen)
 
 /** @type {import('vue').ComputedRef<boolean>} */
 const hideLabelsSideBar = computed(() => store.getters.getHideLabelsSideBar)
+
+/** @type {import('vue').ComputedRef<'top' | 'bottom' | 'left' | 'right'>} */
+const tabBarPosition = computed(() => store.getters.getTabBarPosition)
 
 /** @type {import('vue').ComputedRef<boolean>} */
 const isAnyPromptOpen = computed(() => store.getters.isAnyPromptOpen)
@@ -199,20 +206,36 @@ onMounted(async () => {
       document.addEventListener('click', handleClick)
       document.addEventListener('auxclick', handleAuxClick)
       enableOpenUrl()
+      enableOpenInTab()
       store.dispatch('getExternalPlayerCmdArgumentsData')
     }
 
     dataReady.value = true
+
+    nextTick(() => {
+      let initialRoute = route.path
+      if (initialRoute === '/') {
+        initialRoute = landingPage.value
+      }
+
+      createTabInternal(initialRoute, route.query, 'Subscriptions')
+
+      router.beforeEach((to, from, next) => {
+        if (activeTabIdForRouter) {
+          const tabRouter = tabHost.getTabRouter(activeTabIdForRouter)
+          if (tabRouter && to.fullPath !== from.fullPath) {
+            tabRouter.push({ path: to.path, query: to.query })
+          }
+        }
+        next(false)
+      })
+    })
 
     setTimeout(() => {
       checkForNewUpdates()
       checkForNewBlogPosts()
     }, 500)
   })
-
-  if (route.path === '/') {
-    router.replace({ path: landingPage.value })
-  }
 
   setWindowTitle()
 
@@ -227,7 +250,70 @@ onBeforeUnmount(() => {
   document.removeEventListener('dragstart', handleDragStart)
   document.removeEventListener('click', handleClick)
   document.removeEventListener('auxclick', handleAuxClick)
+
+  store.getters['tabs/getTabs'].forEach((tab) => {
+    tabHost.destroyTab(tab.id)
+  })
 })
+
+function createTabInternal(routePath, query = {}, title = 'New Tab', background = false) {
+  const newTabId = 'tab-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9)
+
+  store.dispatch('tabs/createTab', {
+    id: newTabId,
+    route: routePath,
+    query,
+    title,
+    background,
+  })
+
+  tabHost.createTab(newTabId, routePath, query)
+
+  if (!background) {
+    tabHost.showTab(newTabId)
+    activeTabIdForRouter = newTabId
+  }
+
+  const tabRouter = tabHost.getTabRouter(newTabId)
+  if (tabRouter) {
+    tabRouter.afterEach((to) => {
+      store.dispatch('tabs/updateTabRoute', {
+        tabId: newTabId,
+        route: to.path,
+        query: to.query,
+        title: to.meta?.title || to.path,
+      })
+    })
+  }
+
+  return newTabId
+}
+
+function handleCreateTab() {
+  createTabInternal(landingPage.value, {}, 'New Tab', false)
+}
+
+function handleSwitchTab(tabId) {
+  store.dispatch('tabs/switchTab', tabId)
+  tabHost.showTab(tabId)
+  activeTabIdForRouter = tabId
+}
+
+function handleCloseTab(tabId) {
+  const tabs = store.getters['tabs/getTabs']
+  if (tabs.length <= 1) {
+    return
+  }
+
+  tabHost.destroyTab(tabId)
+  store.dispatch('tabs/closeTab', tabId)
+
+  const newActive = store.getters['tabs/getActiveTabId']
+  if (newActive && newActive !== tabId) {
+    tabHost.showTab(newActive)
+    activeTabIdForRouter = newActive
+  }
+}
 
 /** @type {import('vue').ComputedRef<string>} */
 const baseTheme = computed(() => store.getters.getBaseTheme)
@@ -388,9 +474,73 @@ function handleKeyboardShortcuts(event) {
     store.commit('setIsKeyboardShortcutPromptShown', !isKeyboardShortcutPromptShown.value)
   }
 
-  if (event.key === 'Tab') {
+  if (event.key === 'Tab' && !event.ctrlKey && !event.metaKey) {
     store.dispatch('showOutlines')
   }
+
+  const isMac = navigator.platform.toUpperCase().includes('MAC')
+  const modKey = isMac ? event.metaKey : event.ctrlKey
+
+  if (modKey && event.target.tagName !== 'INPUT') {
+    const tabs = store.getters['tabs/getOrderedTabs']
+    const activeTabId = store.getters['tabs/getActiveTabId']
+    const currentIndex = tabs.findIndex(tab => tab.id === activeTabId)
+
+    if (event.key === 'Tab') {
+      event.preventDefault()
+      if (tabs.length <= 1) {
+        return
+      }
+
+      const nextIndex = event.shiftKey
+        ? (currentIndex <= 0 ? tabs.length - 1 : currentIndex - 1)
+        : (currentIndex >= tabs.length - 1 ? 0 : currentIndex + 1)
+
+      if (tabs[nextIndex]) {
+        handleSwitchTab(tabs[nextIndex].id)
+      }
+      return
+    }
+
+    if ((event.key === 't' || event.key === 'T') && event.shiftKey) {
+      event.preventDefault()
+      reopenClosedTab()
+      return
+    }
+
+    if ((event.key === 't' || event.key === 'T') && !event.shiftKey) {
+      event.preventDefault()
+      handleCreateTab()
+      return
+    }
+
+    if (event.key === 'w' || event.key === 'W') {
+      event.preventDefault()
+      if (activeTabId && tabs.length > 1) {
+        handleCloseTab(activeTabId)
+      }
+    }
+  }
+}
+
+function reopenClosedTab() {
+  const closedTabs = store.getters['tabs/getClosedTabs']
+  if (closedTabs.length === 0) {
+    return
+  }
+
+  store.dispatch('tabs/reopenClosedTab').then((tabId) => {
+    if (!tabId) {
+      return
+    }
+
+    const tab = store.getters['tabs/getTabById'](tabId)
+    if (tab) {
+      tabHost.createTab(tabId, tab.route, tab.query)
+      tabHost.showTab(tabId)
+      activeTabIdForRouter = tabId
+    }
+  })
 }
 
 function handleMouseDown() {
@@ -431,6 +581,53 @@ function isExternalLink(event) {
   return event.target.tagName === 'A' && !event.target.href.startsWith(window.location.origin)
 }
 
+function isInternalRouterLink(event) {
+  const anchor = event.target.closest?.('a')
+  if (!anchor) {
+    return false
+  }
+
+  return anchor.href &&
+    (anchor.href.startsWith(window.location.origin) || anchor.href.startsWith('#'))
+}
+
+function handleInternalMiddleClick(event) {
+  event.preventDefault()
+  event.stopPropagation()
+
+  const anchor = event.target.closest('a')
+  if (!anchor) {
+    return
+  }
+
+  let routePath = ''
+  let query = {}
+
+  const hashIndex = anchor.href.indexOf('#')
+  if (hashIndex !== -1) {
+    const hashPart = anchor.href.substring(hashIndex + 1)
+    const [path, queryString] = hashPart.split('?')
+    routePath = path
+    if (queryString) {
+      query = Object.fromEntries(new URLSearchParams(queryString))
+    }
+  }
+
+  if (!routePath) {
+    return
+  }
+
+  if (store.getters.getMiddleClickAction === 'openInWindow') {
+    openInternalPath({
+      path: routePath,
+      query,
+      doCreateNewWindow: true
+    })
+  } else {
+    createTabInternal(routePath, query, 'New Tab', true)
+  }
+}
+
 /**
  * @param {PointerEvent} event
  */
@@ -447,8 +644,14 @@ function handleAuxClick(event) {
   // auxclick fires for all clicks not performed with the primary button
   // only handle the link click if it was the middle button,
   // otherwise the context menu breaks
-  if (isExternalLink(event) && event.button === 1) {
+  if (event.button !== 1) {
+    return
+  }
+
+  if (isExternalLink(event)) {
     handleLinkClick(event)
+  } else if (isInternalRouterLink(event)) {
+    handleInternalMiddleClick(event)
   }
 }
 
@@ -592,6 +795,24 @@ function enableOpenUrl() {
   })
 }
 
+function enableOpenInTab() {
+  window.ftElectron.handleOpenInTab((url) => {
+    if (!url) {
+      return
+    }
+
+    const hashIndex = url.indexOf('#')
+    if (hashIndex === -1) {
+      return
+    }
+
+    const routePath = url.substring(hashIndex + 1)
+    const [path, queryString] = routePath.split('?')
+    const query = queryString ? Object.fromEntries(new URLSearchParams(queryString)) : {}
+    createTabInternal(path, query, 'New Tab', false)
+  })
+}
+
 const windowTitle = computed(() => {
   const routePath = route.path
   if (
@@ -618,6 +839,19 @@ const appTitle = computed(() => store.getters.getAppTitle)
 
 watch(appTitle, (value) => {
   document.title = value
+
+  if (activeTabIdForRouter && value) {
+    let tabTitle = value
+    const suffixIndex = tabTitle.lastIndexOf(' - ')
+    if (suffixIndex > 0) {
+      tabTitle = tabTitle.substring(0, suffixIndex)
+    }
+
+    store.commit('tabs/UPDATE_TAB_TITLE', {
+      tabId: activeTabIdForRouter,
+      title: tabTitle
+    })
+  }
 })
 
 watch(windowTitle, setWindowTitle)
